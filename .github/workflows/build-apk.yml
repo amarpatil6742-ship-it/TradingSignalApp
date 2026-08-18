@@ -17,21 +17,15 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Setup Java 17
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
-      - name: Force Java 17
-        run: |
-          echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
-          echo "$JAVA_HOME_17_X64/bin" >> "$GITHUB_PATH"
-
-      - name: Install system packages
+      - name: Install dependencies
         run: |
           sudo apt-get update
-
           sudo apt-get install -y \
             build-essential \
             git \
@@ -47,28 +41,24 @@ jobs:
             libffi-dev \
             libssl-dev
 
-      - name: Install Buildozer
+      - name: Install Python packages
         run: |
           python -m pip install --upgrade pip
           pip install buildozer
           pip install "cython<3"
 
-      # ----------------------------------------
-      # CLEAN ALL OLD BUILDOZER DATA
-      # ----------------------------------------
+      # ---------------------------------------
+      # CLEAN OLD BUILDOZER
+      # ---------------------------------------
 
-      - name: Clean Buildozer cache
+      - name: Clean Buildozer
         run: |
           rm -rf "$HOME/.buildozer"
           rm -rf .buildozer
 
-          mkdir -p "$HOME/.buildozer"
-
-          echo "Old Buildozer cache removed."
-
-      # ----------------------------------------
+      # ---------------------------------------
       # ANDROID SDK
-      # ----------------------------------------
+      # ---------------------------------------
 
       - name: Install Android SDK
         run: |
@@ -87,22 +77,39 @@ jobs:
 
           mv cmdline-tools latest
 
-      - name: Setup Android environment
+          # Buildozer compatibility
+          mkdir -p "$SDK/tools/bin"
+
+          ln -sf \
+            "$SDK/cmdline-tools/latest/bin/sdkmanager" \
+            "$SDK/tools/bin/sdkmanager"
+
+          ln -sf \
+            "$SDK/cmdline-tools/latest/bin/avdmanager" \
+            "$SDK/tools/bin/avdmanager"
+
+      # ---------------------------------------
+      # ANDROID ENVIRONMENT
+      # ---------------------------------------
+
+      - name: Configure Android
         run: |
           SDK="$HOME/.buildozer/android/platform/android-sdk"
 
           echo "ANDROIDSDK=$SDK" >> "$GITHUB_ENV"
           echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
 
+          echo "$SDK/tools/bin" >> "$GITHUB_PATH"
           echo "$SDK/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
           echo "$SDK/platform-tools" >> "$GITHUB_PATH"
           echo "$SDK/build-tools/35.0.0" >> "$GITHUB_PATH"
 
-      # ----------------------------------------
-      # ANDROID SDK PACKAGES
-      # ----------------------------------------
+      # ---------------------------------------
+      # SDK PACKAGES
+      # ---------------------------------------
 
-      - name: Install Android packages
+      - name: Install SDK packages
         run: |
           SDK="$HOME/.buildozer/android/platform/android-sdk"
 
@@ -112,7 +119,7 @@ jobs:
           export ANDROIDSDK="$SDK"
           export ANDROID_HOME="$SDK"
 
-          export PATH="$SDK/cmdline-tools/latest/bin:$PATH"
+          export PATH="$SDK/tools/bin:$SDK/cmdline-tools/latest/bin:$PATH"
 
           yes | sdkmanager --licenses || true
 
@@ -121,64 +128,36 @@ jobs:
             "platforms;android-33" \
             "build-tools;35.0.0"
 
-      # ----------------------------------------
-      # CLEAR NDK VARIABLES
-      # ----------------------------------------
+      # ---------------------------------------
+      # CHECK SDKMANAGER
+      # ---------------------------------------
 
-      - name: Clear NDK variables
+      - name: Verify sdkmanager
         run: |
-          echo "ANDROID_NDK=" >> "$GITHUB_ENV"
-          echo "ANDROID_NDK_HOME=" >> "$GITHUB_ENV"
-          echo "ANDROID_NDK_ROOT=" >> "$GITHUB_ENV"
-          echo "ANDROIDNDK=" >> "$GITHUB_ENV"
+          SDK="$HOME/.buildozer/android/platform/android-sdk"
 
-      # ----------------------------------------
-      # CHECK ENVIRONMENT
-      # ----------------------------------------
+          ls -l "$SDK/tools/bin/sdkmanager"
 
-      - name: Check environment
-        run: |
-          echo "JAVA:"
-          java -version
+          "$SDK/tools/bin/sdkmanager" --version
 
-          echo ""
-          echo "PYTHON:"
-          python --version
-
-          echo ""
-          echo "BUILDOZER:"
-          buildozer --version
-
-          echo ""
-          echo "NDK VARIABLES:"
-          env | grep -E '^ANDROID.*NDK' || true
-
-      # ----------------------------------------
+      # ---------------------------------------
       # BUILD APK
-      # ----------------------------------------
+      # ---------------------------------------
 
       - name: Build APK
-        env:
-          ANDROID_NDK: ""
-          ANDROID_NDK_HOME: ""
-          ANDROID_NDK_ROOT: ""
-          ANDROIDNDK: ""
         run: |
           export JAVA_HOME="$JAVA_HOME_17_X64"
           export PATH="$JAVA_HOME/bin:$PATH"
 
-          unset ANDROID_NDK
-          unset ANDROID_NDK_HOME
-          unset ANDROID_NDK_ROOT
-          unset ANDROIDNDK
-
-          echo "Starting clean Buildozer build..."
+          export ANDROIDSDK="$HOME/.buildozer/android/platform/android-sdk"
+          export ANDROID_HOME="$ANDROIDSDK"
+          export ANDROID_SDK_ROOT="$ANDROIDSDK"
 
           buildozer android debug log_level=2
 
-      # ----------------------------------------
+      # ---------------------------------------
       # UPLOAD APK
-      # ----------------------------------------
+      # ---------------------------------------
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
