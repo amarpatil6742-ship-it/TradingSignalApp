@@ -9,27 +9,13 @@ jobs:
 
     steps:
 
-      # ==========================================
-      # 1. CHECKOUT
-      # ==========================================
-
       - name: Checkout
         uses: actions/checkout@v4
-
-
-      # ==========================================
-      # 2. PYTHON
-      # ==========================================
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
-
-      # ==========================================
-      # 3. JAVA 17
-      # ==========================================
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
@@ -37,28 +23,10 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-
-      # ==========================================
-      # 4. FORCE JAVA 17
-      # ==========================================
-
       - name: Force Java 17
         run: |
-          echo "JAVA_HOME=$JAVA_HOME_17_X64" >> $GITHUB_ENV
-          echo "$JAVA_HOME_17_X64/bin" >> $GITHUB_PATH
-
-          export JAVA_HOME="$JAVA_HOME_17_X64"
-          export PATH="$JAVA_HOME/bin:$PATH"
-
-          echo "JAVA_HOME=$JAVA_HOME"
-
-          java -version
-          javac -version
-
-
-      # ==========================================
-      # 5. SYSTEM PACKAGES
-      # ==========================================
+          echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
+          echo "$JAVA_HOME_17_X64/bin" >> "$GITHUB_PATH"
 
       - name: Install system packages
         run: |
@@ -79,30 +47,31 @@ jobs:
             libffi-dev \
             libssl-dev
 
-
-      # ==========================================
-      # 6. BUILDОZER
-      # ==========================================
-
       - name: Install Buildozer
         run: |
           python -m pip install --upgrade pip
-
           pip install buildozer
-
           pip install "cython<3"
 
+      # ----------------------------------------
+      # CLEAN ALL OLD BUILDOZER DATA
+      # ----------------------------------------
 
-      # ==========================================
-      # 7. ANDROID SDK DIRECTORY
-      # ==========================================
-
-      - name: Prepare Android SDK
+      - name: Clean Buildozer cache
         run: |
+          rm -rf "$HOME/.buildozer"
+          rm -rf .buildozer
 
-          export JAVA_HOME="$JAVA_HOME_17_X64"
-          export PATH="$JAVA_HOME/bin:$PATH"
+          mkdir -p "$HOME/.buildozer"
 
+          echo "Old Buildozer cache removed."
+
+      # ----------------------------------------
+      # ANDROID SDK
+      # ----------------------------------------
+
+      - name: Install Android SDK
+        run: |
           SDK="$HOME/.buildozer/android/platform/android-sdk"
 
           mkdir -p "$SDK/cmdline-tools"
@@ -112,258 +81,104 @@ jobs:
           wget -q \
             https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
 
-          unzip -q \
-            commandlinetools-linux-11076708_latest.zip
+          unzip -q commandlinetools-linux-11076708_latest.zip
 
-          rm -f \
-            commandlinetools-linux-11076708_latest.zip
+          rm commandlinetools-linux-11076708_latest.zip
 
           mv cmdline-tools latest
 
-          echo "Android SDK prepared"
-
-          ls -la "$SDK/cmdline-tools/latest/bin"
-
-
-      # ==========================================
-      # 8. SET SDK ENVIRONMENT
-      # ==========================================
-
-      - name: Setup Android SDK environment
+      - name: Setup Android environment
         run: |
-
           SDK="$HOME/.buildozer/android/platform/android-sdk"
 
-          echo "ANDROIDSDK=$SDK" >> $GITHUB_ENV
-          echo "ANDROID_HOME=$SDK" >> $GITHUB_ENV
+          echo "ANDROIDSDK=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
 
-          echo "JAVA_HOME=$JAVA_HOME_17_X64" >> $GITHUB_ENV
+          echo "$SDK/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "$SDK/platform-tools" >> "$GITHUB_PATH"
+          echo "$SDK/build-tools/35.0.0" >> "$GITHUB_PATH"
 
-          echo "$JAVA_HOME_17_X64/bin" >> $GITHUB_PATH
-
-          echo "$SDK/cmdline-tools/latest/bin" >> $GITHUB_PATH
-
-          echo "$SDK/platform-tools" >> $GITHUB_PATH
-
-          echo "$SDK/build-tools/35.0.0" >> $GITHUB_PATH
-
-
-      # ==========================================
-      # 9. FIX OLD BUILDOZER SDKMANAGER PATH
-      # ==========================================
-
-      - name: Fix Buildozer SDK Manager
-        run: |
-
-          SDK="$HOME/.buildozer/android/platform/android-sdk"
-
-          mkdir -p "$SDK/tools/bin"
-
-          ln -sf \
-            "$SDK/cmdline-tools/latest/bin/sdkmanager" \
-            "$SDK/tools/bin/sdkmanager"
-
-          ln -sf \
-            "$SDK/cmdline-tools/latest/bin/avdmanager" \
-            "$SDK/tools/bin/avdmanager"
-
-          chmod +x \
-            "$SDK/cmdline-tools/latest/bin/sdkmanager"
-
-          chmod +x \
-            "$SDK/cmdline-tools/latest/bin/avdmanager"
-
-          echo "================================"
-          echo "SDK MANAGER CHECK"
-          echo "================================"
-
-          ls -l "$SDK/tools/bin/sdkmanager"
-
-          ls -l "$SDK/cmdline-tools/latest/bin/sdkmanager"
-
-
-      # ==========================================
-      # 10. VERIFY JAVA + SDKMANAGER
-      # ==========================================
-
-      - name: Verify Java and SDK
-        run: |
-
-          export JAVA_HOME="$JAVA_HOME_17_X64"
-          export PATH="$JAVA_HOME/bin:$PATH"
-
-          SDK="$HOME/.buildozer/android/platform/android-sdk"
-
-          export ANDROIDSDK="$SDK"
-          export ANDROID_HOME="$SDK"
-
-          export PATH="$SDK/cmdline-tools/latest/bin:$PATH"
-          export PATH="$SDK/tools/bin:$PATH"
-          export PATH="$SDK/platform-tools:$PATH"
-
-          echo "================================"
-          echo "JAVA"
-          echo "================================"
-
-          java -version
-
-          javac -version
-
-          echo "================================"
-          echo "JAVA LOCATION"
-          echo "================================"
-
-          which java
-
-          echo "================================"
-          echo "SDKMANAGER LOCATION"
-          echo "================================"
-
-          which sdkmanager
-
-          echo "================================"
-          echo "SDKMANAGER VERSION"
-          echo "================================"
-
-          sdkmanager --version
-
-
-      # ==========================================
-      # 11. ACCEPT LICENSES
-      # ==========================================
-
-      - name: Accept Android licenses
-        run: |
-
-          export JAVA_HOME="$JAVA_HOME_17_X64"
-          export PATH="$JAVA_HOME/bin:$PATH"
-
-          SDK="$HOME/.buildozer/android/platform/android-sdk"
-
-          export ANDROIDSDK="$SDK"
-          export ANDROID_HOME="$SDK"
-
-          export PATH="$SDK/cmdline-tools/latest/bin:$PATH"
-          export PATH="$SDK/tools/bin:$PATH"
-
-          yes | sdkmanager --licenses || true
-
-
-      # ==========================================
-      # 12. INSTALL ANDROID PACKAGES
-      # ==========================================
+      # ----------------------------------------
+      # ANDROID SDK PACKAGES
+      # ----------------------------------------
 
       - name: Install Android packages
         run: |
+          SDK="$HOME/.buildozer/android/platform/android-sdk"
 
           export JAVA_HOME="$JAVA_HOME_17_X64"
           export PATH="$JAVA_HOME/bin:$PATH"
-
-          SDK="$HOME/.buildozer/android/platform/android-sdk"
 
           export ANDROIDSDK="$SDK"
           export ANDROID_HOME="$SDK"
 
           export PATH="$SDK/cmdline-tools/latest/bin:$PATH"
-          export PATH="$SDK/tools/bin:$PATH"
+
+          yes | sdkmanager --licenses || true
 
           sdkmanager \
             "platform-tools" \
-            "platforms;android-35" \
+            "platforms;android-33" \
             "build-tools;35.0.0"
 
+      # ----------------------------------------
+      # CLEAR NDK VARIABLES
+      # ----------------------------------------
 
-      # ==========================================
-      # 13. VERIFY AIDL
-      # ==========================================
-
-      - name: Verify AIDL
+      - name: Clear NDK variables
         run: |
+          echo "ANDROID_NDK=" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=" >> "$GITHUB_ENV"
+          echo "ANDROIDNDK=" >> "$GITHUB_ENV"
 
-          SDK="$HOME/.buildozer/android/platform/android-sdk"
+      # ----------------------------------------
+      # CHECK ENVIRONMENT
+      # ----------------------------------------
 
-          echo "Searching for AIDL..."
-
-          find "$SDK" \
-            -name aidl \
-            -type f \
-            -print
-
-          echo "AIDL check completed"
-
-
-      # ==========================================
-      # 14. FINAL SDKMANAGER FIX
-      # ==========================================
-
-      - name: Final SDK Manager Fix
+      - name: Check environment
         run: |
+          echo "JAVA:"
+          java -version
 
-          SDK="$HOME/.buildozer/android/platform/android-sdk"
+          echo ""
+          echo "PYTHON:"
+          python --version
 
-          mkdir -p "$SDK/tools/bin"
+          echo ""
+          echo "BUILDOZER:"
+          buildozer --version
 
-          if [ -f "$SDK/cmdline-tools/latest/bin/sdkmanager" ]; then
+          echo ""
+          echo "NDK VARIABLES:"
+          env | grep -E '^ANDROID.*NDK' || true
 
-            ln -sf \
-              "$SDK/cmdline-tools/latest/bin/sdkmanager" \
-              "$SDK/tools/bin/sdkmanager"
-
-            echo "sdkmanager link created"
-
-          else
-
-            echo "ERROR: sdkmanager not found"
-
-            exit 1
-
-          fi
-
-          ls -l "$SDK/tools/bin/sdkmanager"
-
-
-      # ==========================================
-      # 15. BUILD APK
-      # ==========================================
+      # ----------------------------------------
+      # BUILD APK
+      # ----------------------------------------
 
       - name: Build APK
+        env:
+          ANDROID_NDK: ""
+          ANDROID_NDK_HOME: ""
+          ANDROID_NDK_ROOT: ""
+          ANDROIDNDK: ""
         run: |
-
           export JAVA_HOME="$JAVA_HOME_17_X64"
           export PATH="$JAVA_HOME/bin:$PATH"
 
-          SDK="$HOME/.buildozer/android/platform/android-sdk"
+          unset ANDROID_NDK
+          unset ANDROID_NDK_HOME
+          unset ANDROID_NDK_ROOT
+          unset ANDROIDNDK
 
-          export ANDROIDSDK="$SDK"
-          export ANDROID_HOME="$SDK"
+          echo "Starting clean Buildozer build..."
 
-          export PATH="$SDK/cmdline-tools/latest/bin:$PATH"
-          export PATH="$SDK/tools/bin:$PATH"
-          export PATH="$SDK/platform-tools:$PATH"
-          export PATH="$SDK/build-tools/35.0.0:$PATH"
+          buildozer android debug log_level=2
 
-          echo "================================"
-          echo "FINAL JAVA"
-          echo "================================"
-
-          java -version
-
-          echo "================================"
-          echo "FINAL SDKMANAGER"
-          echo "================================"
-
-          "$SDK/tools/bin/sdkmanager" --version
-
-          echo "================================"
-          echo "BUILD APK"
-          echo "================================"
-
-          buildozer android debug
-
-
-      # ==========================================
-      # 16. UPLOAD APK
-      # ==========================================
+      # ----------------------------------------
+      # UPLOAD APK
+      # ----------------------------------------
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
